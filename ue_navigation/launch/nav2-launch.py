@@ -16,7 +16,7 @@ from nav2_common.launch import RewrittenYaml, ReplaceString
 def generate_launch_description():
     ld = LaunchDescription()
 
-    pkg_dir = get_package_share_directory('tb3_slam')
+    pkg_dir = get_package_share_directory('ue_navigation')
     map_server_params = os.path.join(pkg_dir, 'config/nav2', 'map_server_params.yaml')
     amcl_params = os.path.join(pkg_dir, 'config/nav2', 'amcl_params.yaml')
     controller_server_params = os.path.join(pkg_dir, 'config/nav2', 'controller_params.yaml')
@@ -66,7 +66,7 @@ def generate_launch_description():
             output='screen',
             respawn_delay=2.0,
             parameters=[controller_server_params],
-            remappings=remappings + [('cmd_vel', 'commands/velocity')]),
+            remappings=remappings),
         Node(
             package='nav2_planner',
             executable='planner_server',
