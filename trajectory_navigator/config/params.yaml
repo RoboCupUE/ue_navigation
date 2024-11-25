@@ -1,0 +1,3 @@
+/trajectory_navigator_node:
+  ros__parameters:
+    goals_list: "[[0.0, 0.0]]"
