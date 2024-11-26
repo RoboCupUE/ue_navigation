@@ -1,8 +1,6 @@
 import rclpy
 from geometry_msgs.msg import PoseStamped
-from rclpy.duration import Duration
 import rclpy.node
-from rclpy.action import ActionClient
 from geometry_msgs.msg import PoseWithCovarianceStamped
 from geometry_msgs.msg import Pose
 import rclpy.qos
@@ -42,7 +40,7 @@ class TrajectoryNavigatorNode(rclpy.node.Node):
     def _step(self):
         self._current_goal = self._get_goal(self._goals_list[self._goal_index])
 
-        print('Moving to: ' + str(self._goals_list[self._goal_index]))
+        self.get_logger().info('Moving to: ' + str(self._goals_list[self._goal_index]))
         self._send_goal()
 
         if (self._amcl_pose == None):
@@ -57,10 +55,9 @@ class TrajectoryNavigatorNode(rclpy.node.Node):
                 self._goal_index = 0
 
     def _poseCb(self, msg):
-        amcl_pose = Pose()
         self._amcl_pose = msg.pose.pose
 
-        print("Received amcl pose")
+        self.get_logger().info("Received amcl pose")
 
     def _send_goal(self):
         self._goal_pub.publish(self._current_goal)
