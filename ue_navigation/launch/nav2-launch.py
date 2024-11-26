@@ -25,7 +25,8 @@ def generate_launch_description():
     behavior_server_params = os.path.join(pkg_dir, 'config/nav2', 'behavior_server_params.yaml')
 
     remappings = [('/tf', 'tf'),
-        ('/tf_static', 'tf_static')]
+        ('/tf_static', 'tf_static'),
+        ('/cmd_vel', '/commands/velocity')]
     
     lifecycle_nodes = ['map_server',
                        'amcl',

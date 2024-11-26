@@ -3,88 +3,91 @@ from geometry_msgs.msg import PoseStamped
 from rclpy.duration import Duration
 import rclpy.node
 from rclpy.action import ActionClient
-from nav2_msgs.action import NavigateToPose
+from geometry_msgs.msg import PoseWithCovarianceStamped
+from geometry_msgs.msg import Pose
+import rclpy.qos
 
 class TrajectoryNavigatorNode(rclpy.node.Node):
     def __init__(self, node_name):
         super().__init__(node_name=node_name)
-        self._nav_client_act = ActionClient(self, NavigateToPose, 'navigate_to_pose')
-
+        self._goal_pub = self.create_publisher(PoseStamped, 'goal_pose', 1)
+        self._amcl_sub = self.create_subscription(PoseWithCovarianceStamped, 'amcl_pose', self._poseCb, rclpy.qos.QoSDurabilityPolicy.TRANSIENT_LOCAL)
+        '''
         self._goals_list = [
             [-1.94, -0.44, 0.0, 0.0, 0.0, 0.0, 1.0],
-            [-0.53, -1.86, 0.0, 0.0, 0.0, 0.0, 1.0]
+            [-0.53, -1.86, 0.0, 0.0, 0.0, 0.0, 1.0],
+            [0.56, -0.07, 0.0, 0.0, 0.0, 0.0, 1.0]
+        ]
+        '''
+
+        self._goals_list = [
+            #[-14.212, -16.560, 0.0, 0.0, 0.0, 0.0, 1.0],
+            [13.605, -25.650, 0.0, 0.0, 0.0, 0.0, 1.0],
+            [4.419, -28.249, 0.0, 0.0, 0.0, 0.0, 1.0],
+            [6.911, -34.374, 0.0, 0.0, 0.0, 0.0, 1.0],
+            [-0.457, -25.683, 0.0, 0.0, 0.0, 0.0, 1.0],
+            [-0.220, -16.687, 0.0, 0.0, 0.0, 0.0, 1.0]
         ]
 
-        self._pose_index = 0
+        self._goal_index = 0
+        self._navigating = False
+        self._amcl_pose = None
+        self._current_goal = None
 
-        self._poses_list = self._get_poses()
+        self._x_margin = 0.5
+        self._y_margin = 0.5
 
-    def step(self):
-        if (not  self._nav_client_act.wait_for_server()):
-            self.get_logger().error("Action Server Unavailable")
+        self._timer = self.create_timer(1, self._step)
+
+    def _step(self):
+        self._current_goal = self._get_goal(self._goals_list[self._goal_index])
+
+        print('Moving to: ' + str(self._goals_list[self._goal_index]))
+        self._send_goal()
+
+        if (self._amcl_pose == None):
             return
 
-        goals_msg = NavigateToPose.Goal()
-        goals_msg.pose = self._poses_list[self._pose_index]
-        self._send_goal_future = self._nav_client_act.send_goal_async(goals_msg,feedback_callback=self._feedback_callback)
-        self._send_goal_future.add_done_callback(self._goal_response_callback)
+        if (((self._current_goal.pose.position.x) > ((self._amcl_pose.position.x) - self._x_margin)) and
+            (self._current_goal.pose.position.x < ((self._amcl_pose.position.x) + self._x_margin)) and
+            ((self._current_goal.pose.position.y) > ((self._amcl_pose.position.y) - self._y_margin)) and
+            ((self._current_goal.pose.position.y) < ((self._amcl_pose.position.y) + self._y_margin))):
+            self._goal_index += 1
+            if (self._goal_index == len(self._goals_list)):
+                self._goal_index = 0
 
-    def _get_poses(self):
-        poses = []
+    def _poseCb(self, msg):
+        amcl_pose = Pose()
+        self._amcl_pose = msg.pose.pose
+
+        print("Received amcl pose")
+
+    def _send_goal(self):
+        self._goal_pub.publish(self._current_goal)
+
+    def _get_goal(self, pose):
         goal_pose = PoseStamped()
         
-        for goal in self._goals_list:
-            print(goal)
-            goal_pose.header.stamp = self.get_clock().now().to_msg()
-            goal_pose.header.frame_id = 'map'
-
-            goal_pose.pose.position.x = goal[0]
-            goal_pose.pose.position.y = goal[1]
-            goal_pose.pose.position.z = goal[2]
-
-            goal_pose.pose.orientation.x = goal[3]
-            goal_pose.pose.orientation.y = goal[4]
-            goal_pose.pose.orientation.z = goal[5]
-            goal_pose.pose.orientation.w = goal[6]
-
-            poses.append(goal_pose)
-
-        return poses
-    
-    def _goal_response_callback(self, future):
-        goal_handle = future.result()
-        if not goal_handle.accepted:
-            self.get_logger().error('Goal rejected :(')
-            return
-
-        self.get_logger().info('Navigating to: ' +
-                               '(' + str(self._goals_list[self._pose_index][0]) + ',' +
-                               str(self._goals_list[self._pose_index][1]) + ',' +
-                               str(self._goals_list[self._pose_index][2]) + ')')
-
-        self._get_result_future = goal_handle.get_result_async()
-        self._get_result_future.add_done_callback(self._goal_result_callback)
-
-    def _goal_result_callback(self, future):
-        result = future.result().result
-
-        self.get_logger().info('Goal Reached')
         
-        self._pose_index += 1
-        if (self._pose_index >= len(self._goals_list)):
-            self._pose_index = 0
-        self.step()
-    
-    def _feedback_callback(self, feedback_msg):
-        feedback = feedback_msg.feedback
-        self.get_logger().info('Distance Remaining: {0}'.format(feedback.distance_remaining))
+        goal_pose.header.stamp = self.get_clock().now().to_msg()
+        goal_pose.header.frame_id = 'map'
+
+        goal_pose.pose.position.x = pose[0]
+        goal_pose.pose.position.y = pose[1]
+        goal_pose.pose.position.z = pose[2]
+
+        goal_pose.pose.orientation.x = pose[3]
+        goal_pose.pose.orientation.y = pose[4]
+        goal_pose.pose.orientation.z = pose[5]
+        goal_pose.pose.orientation.w = pose[6]
+
+        return goal_pose
 
 def main(args=None):
     
     rclpy.init(args=args)
 
     trajectory_navigator_node = TrajectoryNavigatorNode('trajectory_navigator_node')
-    trajectory_navigator_node.step()
 
     rclpy.spin(trajectory_navigator_node)
 
